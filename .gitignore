@@ -12,3 +12,4 @@ env/
 # 忽略 IDE 配置
 .vscode/
 .idea/
+node_modules/

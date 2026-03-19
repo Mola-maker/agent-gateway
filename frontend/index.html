@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JLU Agent Gateway v2.0 - 硅谷级校园AI助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .chat-bubble {
+      animation: fadeIn 0.3s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .typing-indicator span {
+      animation: bounce 1.4s infinite ease-in-out;
+    }
+    
+    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+    
+    .progress-bar {
+      transition: width 0.3s ease;
+    }
+    
+    .message-stream {
+      animation: typewriter 0.05s steps(1);
+    }
+    
+    @keyframes typewriter {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div id="app" class="flex h-screen">
+    <!-- 侧边栏 -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div class="p-4 gradient-bg text-white">
+        <h1 class="text-xl font-bold">🤖 JLU Agent</h1>
+        <p class="text-sm opacity-90">硅谷级校园AI助手</p>
+      </div>
+      
+      <nav class="flex-1 p-4 space-y-2">
+        <button onclick="showSection('chat')" class="nav-btn w-full text-left px-4 py-3 rounded-lg hover:bg-blue-50 text-gray-700 font-medium flex items-center gap-2">
+          <span>💬</span> 智能对话
+        </button>
+        <button onclick="showSection('scraper')" class="nav-btn w-full text-left px-4 py-3 rounded-lg hover:bg-blue-50 text-gray-700 font-medium flex items-center gap-2">
+          <span>🚀</span> 极速爬虫
+        </button>
+        <button onclick="showSection('memory')" class="nav-btn w-full text-left px-4 py-3 rounded-lg hover:bg-blue-50 text-gray-700 font-medium flex items-center gap-2">
+          <span>💾</span> 记忆管理
+        </button>
+        <button onclick="showSection('stats')" class="nav-btn w-full text-left px-4 py-3 rounded-lg hover:bg-blue-50 text-gray-700 font-medium flex items-center gap-2">
+          <span>📊</span> 系统统计
+        </button>
+      </nav>
+      
+      <div class="p-4 border-t border-gray-200">
+        <div class="text-xs text-gray-500">
+          <p>版本: v2.0.0</p>
+          <p>架构: 硅谷级5模块</p>
+        </div>
+      </div>
+    </aside>
+    
+    <!-- 主内容区 -->
+    <main class="flex-1 flex flex-col">
+      <!-- 顶部栏 -->
+      <header class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 id="section-title" class="text-xl font-semibold text-gray-800">智能对话</h2>
+            <p id="section-desc" class="text-sm text-gray-500">与AI助手对话，查询校园信息</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <div id="status-indicator" class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span class="text-sm text-gray-600">系统运行中</span>
+            </div>
+          </div>
+        </div>
+      </header>
+      
+      <!-- 内容区域 -->
+      <div class="flex-1 overflow-hidden">
+        <!-- 智能对话 -->
+        <section id="section-chat" class="h-full flex flex-col">
+          <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <div class="chat-bubble max-w-3xl">
+              <div class="bg-blue-50 rounded-lg p-4">
+                <p class="text-gray-700">👋 你好！我是JLU校园AI助手。我可以帮你查询校园通知、回答问题。试试问我"最近有什么本科生院的通知？"</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="border-t border-gray-200 p-4 bg-white">
+            <div class="max-w-3xl mx-auto">
+              <div class="flex gap-3">
+                <input 
+                  type="text" 
+                  id="chat-input" 
+                  placeholder="输入你的问题..." 
+                  class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onkeypress="if(event.key === 'Enter') sendChat()"
+                >
+                <button 
+                  onclick="sendChat()" 
+                  class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition"
+                >
+                  发送
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- 极速爬虫 -->
+        <section id="section-scraper" class="h-full flex flex-col hidden">
+          <div class="flex-1 p-6">
+            <div class="max-w-3xl mx-auto space-y-6">
+              <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold mb-4">🚀 极速爬虫配置</h3>
+                
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">目标意图</label>
+                    <input 
+                      type="text" 
+                      id="scraper-intent" 
+                      value="最近的所有校内通知"
+                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">爬取数量</label>
+                    <select id="scraper-count" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="5">5条</option>
+                      <option value="10" selected>10条</option>
+                      <option value="15">15条</option>
+                      <option value="20">20条</option>
+                    </select>
+                  </div>
+                  
+                  <button 
+                    onclick="startScraper()" 
+                    class="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 font-medium transition"
+                  >
+                    🚀 启动极速爬虫
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 爬虫进度 -->
+              <div id="scraper-progress" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hidden">
+                <h3 class="text-lg font-semibold mb-4">📊 爬虫进度</h3>
+                <div class="space-y-3">
+                  <div class="flex justify-between text-sm">
+                    <span id="scraper-status">准备中...</span>
+                    <span id="scraper-percent">0%</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="scraper-bar" class="progress-bar bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                  </div>
+                  <div id="scraper-details" class="text-sm text-gray-600"></div>
+                </div>
+              </div>
+              
+              <!-- 爬虫结果 -->
+              <div id="scraper-results" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hidden">
+                <h3 class="text-lg font-semibold mb-4">📋 爬取结果</h3>
+                <div id="scraper-results-list" class="space-y-3"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- 记忆管理 -->
+        <section id="section-memory" class="h-full flex flex-col hidden">
+          <div class="flex-1 p-6">
+            <div class="max-w-4xl mx-auto space-y-6">
+              <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-lg font-semibold">💾 记忆库管理</h3>
+                  <button 
+                    onclick="loadMemories()" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    刷新列表
+                  </button>
+                </div>
+                
+                <div id="memory-stats" class="grid grid-cols-3 gap-4 mb-6">
+                  <div class="bg-blue-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600" id="memory-count">0</div>
+                    <div class="text-sm text-gray-600">记忆条数</div>
+                  </div>
+                  <div class="bg-green-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600" id="memory-status">正常</div>
+                    <div class="text-sm text-gray-600">数据库状态</div>
+                  </div>
+                  <div class="bg-purple-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-purple-600" id="memory-type">JSON</div>
+                    <div class="text-sm text-gray-600">存储类型</div>
+                  </div>
+                </div>
+                
+                <div id="memory-list" class="space-y-3 max-h-96 overflow-y-auto">
+                  <p class="text-gray-500 text-center py-8">点击"刷新列表"加载记忆数据</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- 系统统计 -->
+        <section id="section-stats" class="h-full flex flex-col hidden">
+          <div class="flex-1 p-6">
+            <div class="max-w-4xl mx-auto space-y-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div class="text-3xl font-bold text-blue-600">5</div>
+                  <div class="text-sm text-gray-600 mt-1">核心模块</div>
+                  <div class="text-xs text-gray-400 mt-2">探路者/潜水员/粉碎机/记忆库/接待员</div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div class="text-3xl font-bold text-green-600">v2.0</div>
+                  <div class="text-sm text-gray-600 mt-1">当前版本</div>
+                  <div class="text-xs text-gray-400 mt-2">硅谷级架构</div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div class="text-3xl font-bold text-purple-600">SSE</div>
+                  <div class="text-sm text-gray-600 mt-1">流式传输</div>
+                  <div class="text-xs text-gray-400 mt-2">实时响应</div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div class="text-3xl font-bold text-orange-600">ChromaDB</div>
+                  <div class="text-sm text-gray-600 mt-1">向量数据库</div>
+                  <div class="text-xs text-gray-400 mt-2">语义检索</div>
+                </div>
+              </div>
+              
+              <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold mb-4">🏗️ 架构模块</h3>
+                <div class="space-y-3">
+                  <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="text-2xl">🔍</span>
+                    <div>
+                      <div class="font-medium">模块A: 探路者 (Scraper Agent)</div>
+                      <div class="text-sm text-gray-600">自动寻路，获取通知列表</div>
+                    </div>
+                    <span class="ml-auto px-2 py-1 bg-green-100 text-green-700 text-xs rounded">运行中</span>
+                  </div>
+                  
+                  <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="text-2xl">🏊</span>
+                    <div>
+                      <div class="font-medium">模块B: 潜水员 (Deep-Dive Agent)</div>
+                      <div class="text-sm text-gray-600">深入详情页，提取正文内容</div>
+                    </div>
+                    <span class="ml-auto px-2 py-1 bg-green-100 text-green-700 text-xs rounded">运行中</span>
+                  </div>
+                  
+                  <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="text-2xl">📄</span>
+                    <div>
+                      <div class="font-medium">模块C: 文件粉碎机 (Document Parser)</div>
+                      <div class="text-sm text-gray-600">解析 .zip、.docx、.xlsx、.pdf 文件</div>
+                    </div>
+                    <span class="ml-auto px-2 py-1 bg-green-100 text-green-700 text-xs rounded">运行中</span>
+                  </div>
+                  
+                  <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="text-2xl">💾</span>
+                    <div>
+                      <div class="font-medium">模块D: 记忆中枢 (Vector DB)</div>
+                      <div class="text-sm text-gray-600">向量存储，语义检索</div>
+                    </div>
+                    <span class="ml-auto px-2 py-1 bg-green-100 text-green-700 text-xs rounded">运行中</span>
+                  </div>
+                  
+                  <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="text-2xl">💬</span>
+                    <div>
+                      <div class="font-medium">模块E: 前台接待员 (Chat Controller)</div>
+                      <div class="text-sm text-gray-600">自然语言对话，智能问答</div>
+                    </div>
+                    <span class="ml-auto px-2 py-1 bg-green-100 text-green-700 text-xs rounded">运行中</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  
+  <script>
+    // API基础地址 - 确保指向正确的后端
+    const API_BASE = 'http://localhost:3000';
+    let currentSection = 'chat';
+    
+    // 切换页面
+    function showSection(section) {
+      document.querySelectorAll('[id^="section-"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`section-${section}`).classList.remove('hidden');
+      
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('bg-blue-50', 'text-blue-600'));
+      event.target.closest('.nav-btn').classList.add('bg-blue-50', 'text-blue-600');
+      
+      const titles = {
+        chat: ['智能对话', '与AI助手对话，查询校园信息'],
+        scraper: ['极速爬虫', '一键爬取校园通知'],
+        memory: ['记忆管理', '查看和管理记忆库'],
+        stats: ['系统统计', '查看系统运行状态']
+      };
+      
+      document.getElementById('section-title').textContent = titles[section][0];
+      document.getElementById('section-desc').textContent = titles[section][1];
+      currentSection = section;
+    }
+    
+    // 发送聊天
+    async function sendChat() {
+      const input = document.getElementById('chat-input');
+      const query = input.value.trim();
+      if (!query) return;
+      
+      input.value = '';
+      
+      // 添加用户消息
+      addMessage('user', query);
+      
+      // 显示加载状态
+      const loadingId = addLoading();
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        
+        const result = await response.json();
+        
+        removeLoading(loadingId);
+        
+        if (result.status === 'success') {
+          addMessage('assistant', result.data.answer, result.data.sources);
+        } else {
+          addMessage('assistant', '抱歉，处理您的请求时出现错误。');
+        }
+      } catch (error) {
+        removeLoading(loadingId);
+        addMessage('assistant', '网络错误，请稍后重试。');
+      }
+    }
+    
+    // 添加消息
+    function addMessage(role, content, sources = []) {
+      const messagesDiv = document.getElementById('chat-messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `chat-bubble max-w-3xl ${role === 'user' ? 'ml-auto' : ''}`;
+      
+      const bgColor = role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100';
+      const icon = role === 'user' ? '👤' : '🤖';
+      
+      let sourcesHtml = '';
+      if (sources && sources.length > 0) {
+        sourcesHtml = `
+          <div class="mt-3 pt-3 border-t border-gray-200">
+            <div class="text-xs text-gray-500 mb-2">📚 参考来源:</div>
+            ${sources.map(s => `
+              <a href="${s.url}" target="_blank" class="block text-xs text-blue-600 hover:underline mb-1">
+                ${s.title}
+              </a>
+            `).join('')}
+          </div>
+        `;
+      }
+      
+      messageDiv.innerHTML = `
+        <div class="${bgColor} rounded-lg p-4">
+          <div class="flex items-start gap-2">
+            <span>${icon}</span>
+            <div class="flex-1">
+              <div class="whitespace-pre-wrap">${content}</div>
+              ${sourcesHtml}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    
+    // 添加加载状态
+    function addLoading() {
+      const messagesDiv = document.getElementById('chat-messages');
+      const loadingDiv = document.createElement('div');
+      const id = 'loading-' + Date.now();
+      loadingDiv.id = id;
+      loadingDiv.className = 'chat-bubble max-w-3xl';
+      loadingDiv.innerHTML = `
+        <div class="bg-gray-100 rounded-lg p-4">
+          <div class="flex items-center gap-2">
+            <span>🤖</span>
+            <div class="typing-indicator flex gap-1">
+              <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+              <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+              <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+            </div>
+          </div>
+        </div>
+      `;
+      messagesDiv.appendChild(loadingDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      return id;
+    }
+    
+    // 移除加载状态
+    function removeLoading(id) {
+      const loadingDiv = document.getElementById(id);
+      if (loadingDiv) loadingDiv.remove();
+    }
+    
+    // 启动爬虫
+    async function startScraper() {
+      const intent = document.getElementById('scraper-intent').value;
+      const count = document.getElementById('scraper-count').value;
+      
+      document.getElementById('scraper-progress').classList.remove('hidden');
+      document.getElementById('scraper-results').classList.add('hidden');
+      
+      // 使用SSE流式接收进度
+      const eventSource = new EventSource(`${API_BASE}/api/notices/stream?intent=${encodeURIComponent(intent)}&count=${count}`);
+      
+      eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'progress') {
+          document.getElementById('scraper-status').textContent = data.payload.step;
+          document.getElementById('scraper-percent').textContent = `${data.payload.progress}%`;
+          document.getElementById('scraper-bar').style.width = `${data.payload.progress}%`;
+        } else if (data.type === 'data') {
+          document.getElementById('scraper-details').textContent = JSON.stringify(data.payload, null, 2);
+        } else if (data.type === 'end') {
+          eventSource.close();
+          loadScraperResults();
+        } else if (data.type === 'error') {
+          document.getElementById('scraper-status').textContent = `错误: ${data.payload.error}`;
+          eventSource.close();
+        }
+      };
+      
+      eventSource.onerror = function() {
+        document.getElementById('scraper-status').textContent = '连接错误';
+        eventSource.close();
+      };
+    }
+    
+    // 加载爬虫结果
+    async function loadScraperResults() {
+      try {
+        const response = await fetch(`${API_BASE}/api/notices`);
+        const result = await response.json();
+        
+        if (result.status === 'ok' && result.data) {
+          document.getElementById('scraper-results').classList.remove('hidden');
+          const listDiv = document.getElementById('scraper-results-list');
+          
+          listDiv.innerHTML = result.data.map(item => `
+            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+              <div class="font-medium text-gray-800">${item.title}</div>
+              <div class="text-sm text-gray-600 mt-1">${item.summary || '暂无摘要'}</div>
+              <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                <span>📅 ${item.date || '未知日期'}</span>
+                <span>🏢 ${item.department || '未知部门'}</span>
+              </div>
+              <a href="${item.url}" target="_blank" class="text-blue-600 text-sm hover:underline mt-2 inline-block">
+                查看原文 →
+              </a>
+            </div>
+          `).join('');
+        }
+      } catch (error) {
+        console.error('加载结果失败:', error);
+      }
+    }
+    
+    // 加载记忆列表
+    async function loadMemories() {
+      try {
+        const response = await fetch(`${API_BASE}/api/memories`);
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+          const memories = result.data;
+          document.getElementById('memory-count').textContent = memories.length;
+          
+          const listDiv = document.getElementById('memory-list');
+          
+          if (memories.length === 0) {
+            listDiv.innerHTML = '<p class="text-gray-500 text-center py-8">记忆库为空</p>';
+          } else {
+            listDiv.innerHTML = memories.map(mem => `
+              <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                <div class="font-medium text-gray-800">${mem.title}</div>
+                <div class="text-xs text-gray-500 mt-1">
+                  ${new Date(mem.timestamp).toLocaleString()}
+                </div>
+                <a href="${mem.url}" target="_blank" class="text-blue-600 text-sm hover:underline mt-2 inline-block">
+                  查看链接 →
+                </a>
+              </div>
+            `).join('');
+          }
+        }
+      } catch (error) {
+        console.error('加载记忆失败:', error);
+      }
+    }
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      showSection('chat');
+    });
+  </script>
+</body>
+</html>

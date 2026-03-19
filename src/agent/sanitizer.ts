@@ -2,12 +2,19 @@
 export function sanitizeUrl(url: string | undefined): string {
   if (!url) return '';
   let cleaned = url.trim();
-  // 修复 Markdown 复制陷阱 [url](url)
+
+  // 1. 剥离 Markdown 链接陷阱 [text](url)
   const mdMatch = cleaned.match(/\[.*\]\((.*)\)/);
   if (mdMatch) cleaned = mdMatch[1];
+
+  // 2. 剥离大模型爱用的 Markdown 代码块包裹 (```text ... ```)
+  cleaned = cleaned.replace(/```[a-z]*\n?/g, '').replace(/```/g, '');
+
+  // 3. 绞肉机：强行剥离首尾的任何反引号(`)、单引号(')、双引号(")和空白符
+  cleaned = cleaned.replace(/^[`"'\s]+|[`"'\s]+$/g, '');
+
   return cleaned;
 }
-
 export function wrapExternalContent(text: string): string {
   return `<<<EXTERNAL_UNTRUSTED_CONTENT_START>>>\n${text}\n<<<EXTERNAL_UNTRUSTED_CONTENT_END>>>`;
 }

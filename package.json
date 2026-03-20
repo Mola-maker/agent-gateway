@@ -1,0 +1,42 @@
+{
+  "name": "agent-gateway",
+  "version": "2.0.0",
+  "description": "JLU校园网AI Agent网关 - 硅谷级架构",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "start:v2": "tsx index-v2.js",
+    "dev": "tsx watch index.ts",
+    "dev:v2": "tsx watch index-v2.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "scraper",
+    "jlu",
+    "campus"
+  ],
+  "author": "JLU Agent Team",
+  "license": "MIT",
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.48",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "mammoth": "^1.8.0",
+    "openai": "^6.32.0",
+    "pdf-parse": "^1.1.1",
+    "playwright": "^1.58.2",
+    "unzipper": "^0.12.3",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.2",
+    "@types/node": "^22.15.18",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

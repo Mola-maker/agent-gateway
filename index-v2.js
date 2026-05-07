@@ -39,6 +39,41 @@ const chatController = new ChatController();
 // 全局意图状态
 let currentUserIntent = "最近的所有校内通知";
 
+// 定时爬取状态
+const scheduleState = {
+  enabled: false,
+  intervalSeconds: 3600,
+  timer: null,
+  lastRun: null,
+  nextRun: null,
+  runCount: 0,
+};
+
+async function runScheduledScrape() {
+  scheduleState.lastRun = new Date().toISOString();
+  scheduleState.runCount++;
+  console.log(`\n⏰ [Schedule] 第 ${scheduleState.runCount} 次定时爬取开始...`);
+  try {
+    const result = await fastScraper.scrapeWithSpeed(
+      process.env.TARGET_URL || 'https://oa.jlu.edu.cn/',
+      currentUserIntent
+    );
+    if (result && result.length > 0) {
+      await vectorDB.addMemories(result.map(item => ({
+        title: item.title,
+        summary: item.summary || item.title,
+        url: item.link
+      })));
+    }
+    console.log(`✅ [Schedule] 定时爬取完成，获取 ${result.length} 条通知`);
+  } catch (error) {
+    console.error(`❌ [Schedule] 定时爬取失败:`, error.message);
+  }
+  if (scheduleState.enabled) {
+    scheduleState.nextRun = new Date(Date.now() + scheduleState.intervalSeconds * 1000).toISOString();
+  }
+}
+
 // 首页 - 重定向到现代化前端
 app.get('/', (req, res) => {
   res.redirect('/frontend/index.html');
@@ -292,6 +327,94 @@ app.post('/api/intent', (req, res) => {
 });
 
 /**
+ * Skill B：直接语义检索（无LLM生成开销）
+ * GET /api/search?q=关键词&limit=5
+ */
+app.get('/api/search', async (req, res) => {
+  const query = req.query.q;
+  const limit = Math.min(parseInt(req.query.limit) || 5, 20);
+
+  if (!query) {
+    return res.status(400).json({ error: '缺少 q 参数，用法: /api/search?q=关键词' });
+  }
+
+  console.log(`🔍 [API Search] 语义检索: "${query}" (limit=${limit})`);
+
+  try {
+    const results = await vectorDB.search(String(query), limit);
+    res.json({
+      status: 'success',
+      query,
+      count: results.length,
+      data: results.map(r => ({
+        title: r.title,
+        url: r.url,
+        text: r.text,
+        score: r.score,
+        timestamp: r.timestamp,
+      })),
+    });
+  } catch (error) {
+    console.error(`❌ [Search Error]`, error.message);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+/**
+ * Skill C：定时爬取调度
+ * POST /api/schedule  { enabled: bool, intervalSeconds: number }
+ * GET  /api/schedule  获取当前调度状态
+ */
+app.get('/api/schedule', (req, res) => {
+  res.json({
+    status: 'success',
+    data: {
+      enabled: scheduleState.enabled,
+      intervalSeconds: scheduleState.intervalSeconds,
+      lastRun: scheduleState.lastRun,
+      nextRun: scheduleState.nextRun,
+      runCount: scheduleState.runCount,
+    },
+  });
+});
+
+app.post('/api/schedule', async (req, res) => {
+  const { enabled, intervalSeconds } = req.body;
+
+  // 停止旧定时器
+  if (scheduleState.timer) {
+    clearInterval(scheduleState.timer);
+    scheduleState.timer = null;
+  }
+
+  if (typeof intervalSeconds === 'number' && intervalSeconds >= 60) {
+    scheduleState.intervalSeconds = intervalSeconds;
+  }
+
+  scheduleState.enabled = enabled !== false;
+
+  if (scheduleState.enabled) {
+    console.log(`⏰ [Schedule] 启动定时爬取，间隔 ${scheduleState.intervalSeconds} 秒`);
+    // 立即执行一次，然后按间隔重复
+    runScheduledScrape();
+    scheduleState.nextRun = new Date(Date.now() + scheduleState.intervalSeconds * 1000).toISOString();
+    scheduleState.timer = setInterval(runScheduledScrape, scheduleState.intervalSeconds * 1000);
+  } else {
+    console.log(`⏸️ [Schedule] 定时爬取已停止`);
+    scheduleState.nextRun = null;
+  }
+
+  res.json({
+    status: 'success',
+    data: {
+      enabled: scheduleState.enabled,
+      intervalSeconds: scheduleState.intervalSeconds,
+      nextRun: scheduleState.nextRun,
+    },
+  });
+});
+
+/**
  * 健康检查
  */
 app.get('/api/health', (req, res) => {
@@ -301,10 +424,12 @@ app.get('/api/health', (req, res) => {
     architecture: '硅谷级5模块',
     modules: {
       scraper: '运行中',
-      dive: '运行中',
+      dive: '运行中（附件自动解析）',
       parser: '运行中',
       vectorDB: '运行中',
-      chat: '运行中'
+      chat: '运行中',
+      search: '运行中',
+      schedule: scheduleState.enabled ? `运行中（每${scheduleState.intervalSeconds}秒）` : '待命'
     }
   });
 });
@@ -326,6 +451,9 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/notices/stream - 极速爬虫(SSE流式)`);
   console.log(`  POST /api/chat           - 智能对话(普通)`);
   console.log(`  POST /api/chat/stream    - 智能对话(SSE流式)`);
+  console.log(`  GET  /api/search         - 直接语义检索(?q=关键词&limit=5)`);
+  console.log(`  GET  /api/schedule       - 查看定时爬取状态`);
+  console.log(`  POST /api/schedule       - 启停定时爬取({enabled, intervalSeconds})`);
   console.log(`  GET  /api/stats          - 记忆统计`);
   console.log(`  GET  /api/memories       - 所有记忆`);
   console.log(`  POST /api/memories/clear - 清空记忆`);

@@ -73,6 +73,14 @@ export function createJLUAgentTool() {
             const parsed = await executeParseAction(filePath);
             return { status: "success", data: parsed };
 
+          // 模块D：直接语义检索（无LLM生成）
+          case "search":
+            console.log(`🔍 [Agent] 执行语义检索...`);
+            if (!query) throw new Error("search 动作需要 query 参数");
+            const topK = args.topK ?? 5;
+            const searchResults = await vectorDB.search(query, topK);
+            return { status: "success", data: searchResults };
+
           // 模块E：对话查询
           case "chat":
             console.log(`💬 [Agent] 执行对话查询...`);

@@ -40,7 +40,7 @@ The app checks `OPENROUTER_API_KEY` at runtime. If absent or set to `your_key_he
 
 ### Two Entry Points
 
-`index.js` (v1) — Terminal UI + Playwright with `headless: false, channel: 'msedge'`. Uses `createJLUAgentTool()` from `src/agent/agent-tool.ts` which exposes a single switch-based tool dispatching `scout | dive | pipeline | parse | chat` actions.
+`index.js` (v1) — Terminal UI + Playwright with `headless: false, channel: 'msedge'`. Uses `createJLUAgentTool()` from `src/agent/agent-tool.ts` which exposes a single switch-based tool dispatching `scout | dive | pipeline | parse | chat | search` actions.
 
 `index-v2.js` (v2, **primary**) — Web frontend + SSE streaming + `headless: true` Chromium (no Edge dependency). Instantiates `FastScraperEngine`, `LightVectorDB`, and `ChatController` directly and wires them to Express routes.
 
@@ -49,7 +49,7 @@ The app checks `OPENROUTER_API_KEY` at runtime. If absent or set to `your_key_he
 | Module | File | Role |
 |--------|------|------|
 | A: Scout | `fast-scraper.ts` / `agent-tool.actions.ts` | Playwright navigates to `TARGET_URL`, extracts all `<a>` links, asks LLM to identify the "more notices" href, then paginates (up to 20 pages, last month) |
-| B: Dive | `fast-scraper.ts` (`parallelDive`) / `agent-tool.actions.ts` | Concurrently opens each notice URL; aborts image/CSS/font resources for speed; feeds body text to LLM for summarization |
+| B: Dive | `fast-scraper.ts` (`parallelDive`) / `agent-tool.actions.ts` | Concurrently opens each notice URL; aborts image/CSS/font resources for speed; auto-detects file attachment links (`.docx/.pdf/.xlsx/.zip`) and parses up to 2 per notice via `DocumentParser.parseFromUrl()`; feeds combined body+attachment text to LLM for summarization |
 | C: Parser | `document-parser.ts` | Parses `.docx` (mammoth), `.xlsx/.xls` (xlsx), `.zip` (unzipper), `.pdf` (pdf-parse) into plain text, max 50,000 chars |
 | D: Memory | `vector-db.ts` | In-process JSON store persisted to `./jlu_memory.json`; uses OpenAI embeddings (`text-embedding-ada-002` via OpenRouter) + cosine similarity; falls back to substring text-match when no API key |
 | E: Chat | `chat-controller.ts` | Retrieves top-3 memories from `LightVectorDB`, constructs context, calls LLM; falls back to returning raw search results if LLM fails |
@@ -59,6 +59,10 @@ The app checks `OPENROUTER_API_KEY` at runtime. If absent or set to `your_key_he
 **LLM resilience** (`agent-tool.actions.ts:smartAsk`): Tries `LLM_MODEL` first, then `BACKUP_LLM_MODEL`. Only used in the v1 entry point pipeline; v2 calls OpenAI directly inline.
 
 **SSE streaming** (`sse-stream.ts`): `SSEStreamHandler` wraps an Express `Response` and emits typed `{type, payload, timestamp}` JSON events. The `/api/notices/stream` and `/api/chat/stream` routes in v2 use this.
+
+**Direct search** (`/api/search?q=...&limit=5`): Bypasses LLM entirely — calls `vectorDB.search()` and returns ranked results with scores. Use this when you need fast retrieval without generation overhead. Also exposed as the `search` action in `agent-tool.ts`.
+
+**Scheduled scraping** (`/api/schedule`): `POST {enabled: true, intervalSeconds: 3600}` starts a `setInterval` loop in `index-v2.js` that calls `FastScraperEngine.scrapeWithSpeed()` and stores results to `LightVectorDB`. Minimum interval is 60 seconds. State (lastRun, nextRun, runCount) is in-memory only and resets on server restart.
 
 **Alternate vector DB** (`chroma-vector-db.ts`): `ChromaVectorDB` is a second, similar implementation that uses keyword scoring instead of embeddings. It persists to `./chroma_memory.json` and is **not wired into either entry point** — it exists as an unused alternative.
 

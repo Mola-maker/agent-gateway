@@ -3,6 +3,7 @@
 
 import { chromium, Browser, Page } from 'playwright';
 import OpenAI from 'openai';
+import { DocumentParser } from './document-parser.ts';
 
 interface ScrapedNotice {
   title: string;
@@ -11,6 +12,7 @@ interface ScrapedNotice {
   content?: string;
   department?: string;
   date?: string;
+  attachments?: string[];
 }
 
 export class FastScraperEngine {
@@ -210,8 +212,34 @@ export class FastScraperEngine {
         try {
             await page.goto(item.link, { waitUntil: 'domcontentloaded', timeout: 30000 });
             const body = await page.evaluate(() => document.body.innerText);
-            const cleanBody = body.replace(/\s+/g, ' ').trim().substring(0, 8000);
-            
+            let cleanBody = body.replace(/\s+/g, ' ').trim().substring(0, 8000);
+
+            // 附件自动解析：检测并提取页面中的文件附件内容
+            const attachmentUrls: string[] = await page.evaluate(() => {
+              const FILE_PATTERN = /\.(docx?|xlsx?|pdf|zip)(\?.*)?$/i;
+              return Array.from(document.querySelectorAll('a[href]'))
+                .map((a: any) => a.href as string)
+                .filter(href => FILE_PATTERN.test(href));
+            });
+
+            if (attachmentUrls.length > 0) {
+              console.log(`📎 [FastScraper] 发现 ${attachmentUrls.length} 个附件，开始解析...`);
+              const parser = new DocumentParser();
+              const attachmentTexts: string[] = [];
+              for (const url of attachmentUrls.slice(0, 2)) {
+                try {
+                  const doc = await parser.parseFromUrl(url);
+                  attachmentTexts.push(`[附件: ${doc.filename}]\n${doc.content.substring(0, 1500)}`);
+                  console.log(`✅ [FastScraper] 附件解析完成: ${doc.filename}`);
+                } catch (e: any) {
+                  console.warn(`⚠️ [FastScraper] 附件解析失败: ${url}`, e.message);
+                }
+              }
+              if (attachmentTexts.length > 0) {
+                cleanBody += '\n\n' + attachmentTexts.join('\n\n');
+              }
+            }
+
             // 🛡️ 检查API密钥
             let summary = '无摘要';
             if (this.isApiKeyValid()) {
@@ -219,7 +247,7 @@ export class FastScraperEngine {
                 const summaryRes = await this.openai.chat.completions.create({
                     model: process.env.LLM_MODEL || "deepseek/deepseek-chat",
                     messages: [
-                      { role: "system", content: "提炼通知正文精华。包含：时间、地点、联系方式。" },
+                      { role: "system", content: "提炼通知正文精华。包含：时间、地点、联系方式。如有附件内容，一并提炼关键信息。" },
                       { role: "user", content: `标题：${item.title}\n正文：${cleanBody}` }
                     ],
                     temperature: 0.1,
@@ -233,7 +261,7 @@ export class FastScraperEngine {
               // 🛡️ 降级方案：截取正文前200字符作为摘要
               summary = cleanBody.substring(0, 200) + '...';
             }
-            return { title: item.title, summary, link: item.link };
+            return { title: item.title, summary, link: item.link, attachments: attachmentUrls.slice(0, 2) };
         } catch (e) {
             console.warn(`⚠️ 下钻失败: ${item.title}`);
             return { title: item.title, summary: '下钻失败', link: item.link };
